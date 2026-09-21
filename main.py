@@ -85,11 +85,11 @@ class BrunoFernandesBot(commands.Bot):
         result = "## 📰 뉴스\n"
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-        # 국제뉴스 - BBC World
+        # 국제뉴스 - Google News 한국어 국제 섹션
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    "https://feeds.bbci.co.uk/news/world/rss.xml",
+                    "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx1YlY4U0FtdHZHZ0pMVWlnQVAB?hl=ko&gl=KR&ceid=KR:ko",
                     headers=headers, timeout=10
                 ) as res:
                     if res.status == 200:
@@ -101,11 +101,13 @@ class BrunoFernandesBot(commands.Bot):
                             title = item.find("title")
                             link  = item.find("link")
                             if title is not None:
-                                result += f"{i}. {title.text}\n"
+                                t = title.text.split(" - ")[0].strip()
+                                l = link.text.strip() if link is not None else ""
+                                result += f"{i}. [{t}]({l})\n"
                     else:
                         result += f"**🌍 국제뉴스**\n⚠️ 데이터 접근 실패 ({res.status})\n"
         except Exception as e:
-            result += f"**🌍 국제뉴스**\n⚠️ 수집 실패: {e}\n"
+            result += f"**🌍 국제뉴스**\n⚠️ 수집 실패\n"
             print(f"  └─ 국제뉴스 오류: {e}")
 
         result += "\n"
@@ -124,14 +126,15 @@ class BrunoFernandesBot(commands.Bot):
                         result += "**💾 반도체뉴스**\n"
                         for i, item in enumerate(items, 1):
                             title = item.find("title")
+                            link  = item.find("link")
                             if title is not None:
-                                # Google News 제목에서 언론사 부분 제거
                                 t = title.text.split(" - ")[0].strip()
-                                result += f"{i}. {t}\n"
+                                l = link.text.strip() if link is not None else ""
+                                result += f"{i}. [{t}]({l})\n"
                     else:
                         result += f"**💾 반도체뉴스**\n⚠️ 데이터 접근 실패 ({res.status})\n"
         except Exception as e:
-            result += f"**💾 반도체뉴스**\n⚠️ 수집 실패: {e}\n"
+            result += f"**💾 반도체뉴스**\n⚠️ 수집 실패\n"
             print(f"  └─ 반도체뉴스 오류: {e}")
 
         return result.strip()
