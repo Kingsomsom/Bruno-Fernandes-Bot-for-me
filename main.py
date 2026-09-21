@@ -99,11 +99,8 @@ class BrunoFernandesBot(commands.Bot):
                         result += "**🌍 국제뉴스**\n"
                         for i, item in enumerate(items, 1):
                             title = item.find("title")
-                            link  = item.find("link")
                             if title is not None:
-                                t = title.text.strip()
-                                l = link.text.strip() if link is not None else ""
-                                result += f"{i}. [{t}]({l})\n"
+                                result += f"{i}. {title.text.strip()}\n"
                     else:
                         result += f"**🌍 국제뉴스**\n⚠️ 접근 실패 ({res.status})\n"
         except Exception as e:
@@ -126,11 +123,9 @@ class BrunoFernandesBot(commands.Bot):
                         result += "**💾 반도체뉴스**\n"
                         for i, item in enumerate(items, 1):
                             title = item.find("title")
-                            link  = item.find("link")
                             if title is not None:
                                 t = title.text.split(" - ")[0].strip()
-                                l = link.text.strip() if link is not None else ""
-                                result += f"{i}. [{t}]({l})\n"
+                                result += f"{i}. {t}\n"
                     else:
                         result += f"**💾 반도체뉴스**\n⚠️ 접근 실패 ({res.status})\n"
         except Exception as e:
