@@ -85,11 +85,11 @@ class BrunoFernandesBot(commands.Bot):
         result = "## 📰 뉴스\n"
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-        # 국제뉴스 - Google News 한국어 국제 섹션
+        # 국제뉴스 - BBC World (영어)
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx1YlY4U0FtdHZHZ0pMVWlnQVAB?hl=ko&gl=KR&ceid=KR:ko",
+                    "https://feeds.bbci.co.uk/news/world/rss.xml",
                     headers=headers, timeout=10
                 ) as res:
                     if res.status == 200:
@@ -101,11 +101,11 @@ class BrunoFernandesBot(commands.Bot):
                             title = item.find("title")
                             link  = item.find("link")
                             if title is not None:
-                                t = title.text.split(" - ")[0].strip()
+                                t = title.text.strip()
                                 l = link.text.strip() if link is not None else ""
                                 result += f"{i}. [{t}]({l})\n"
                     else:
-                        result += f"**🌍 국제뉴스**\n⚠️ 데이터 접근 실패 ({res.status})\n"
+                        result += f"**🌍 국제뉴스**\n⚠️ 접근 실패 ({res.status})\n"
         except Exception as e:
             result += f"**🌍 국제뉴스**\n⚠️ 수집 실패\n"
             print(f"  └─ 국제뉴스 오류: {e}")
@@ -132,7 +132,7 @@ class BrunoFernandesBot(commands.Bot):
                                 l = link.text.strip() if link is not None else ""
                                 result += f"{i}. [{t}]({l})\n"
                     else:
-                        result += f"**💾 반도체뉴스**\n⚠️ 데이터 접근 실패 ({res.status})\n"
+                        result += f"**💾 반도체뉴스**\n⚠️ 접근 실패 ({res.status})\n"
         except Exception as e:
             result += f"**💾 반도체뉴스**\n⚠️ 수집 실패\n"
             print(f"  └─ 반도체뉴스 오류: {e}")
@@ -389,10 +389,17 @@ class BrunoFernandesBot(commands.Bot):
             report += f"## 📅 {date_str} 브리핑\n"
             report += f"{today_greeting}\n"
 
+            # 뉴스 (오류나도 리포트는 전송)
+            try:
+                news = await self.get_news()
+            except Exception as e:
+                print(f"⚠️ 뉴스 수집 실패, 리포트는 계속 전송: {e}")
+                news = "## 📰 뉴스\n⚠️ 뉴스 수집 실패"
+
             sections = [
                 busan_weather_raw,
                 self.get_investment_info(is_closing=is_closing),
-                await self.get_news(),
+                news,
             ]
 
             for section in sections:
