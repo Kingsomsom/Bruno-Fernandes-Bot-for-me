@@ -29,33 +29,29 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 WEATHER_API_KEY = os.environ.get("WEATHER_API_KEY", "945QCTKWFPYZF7U4FWR6SPBPH")
 # ===================================================
 
-# 보고 시간 설정
-REPORT_TIMES = [8, 14, 20]
+# 보고 시간 설정 (hour, minute)
+REPORT_TIMES = [(9, 30), (12, 0), (15, 30)]
 
 # 시간대별 레이블 (인사말 생성용)
 TIME_LABELS = {
-    8:  "아침 (08시) 장 개장 보고",
-    14: "오후 (14시) 중간 점검 보고",
-    20: "야간 (20시) 장 마감 보고",
+    (9, 30):  "오전 (09:30) 장 개장 보고",
+    (12, 0):  "점심 (12:00) 중간 점검 보고",
+    (15, 30): "오후 (15:30) 장 마감 보고",
 }
 
 # 시간대별 알림 헤더
 TIME_HEADERS = {
-    8:  "🔔 장이 열렸습니다!",
-    14: "📊 중간 점검입니다!",
-    20: "🔕 장이 마감되었습니다!",
+    (9, 30):  "🔔 장이 열렸습니다! (09:30)",
+    (12, 0):  "📊 중간 점검입니다! (12:00)",
+    (15, 30): "🔕 장이 마감되었습니다! (15:30)",
 }
 
 # 주식 종목
 DOMESTIC_STOCKS = {
-    "삼성전자":    "005930.KS",
-    "삼성전자(우)": "005935.KS",
-    "SK하이닉스":  "000660.KS",
-    "ACE KRX금현물": "411060.KS",
+    "삼성전자":   "005930.KS",
+    "SK하이닉스": "000660.KS",
 }
-OVERSEAS_STOCKS = {
-    "알파벳": "GOOGL",
-}
+OVERSEAS_STOCKS = {}
 
 
 class BrunoFernandesBot(commands.Bot):
@@ -278,22 +274,22 @@ class BrunoFernandesBot(commands.Bot):
 
     def _fallback_greeting(self, hour: int) -> str:
         fallbacks = {
-            8:  "맹구, 장이 열렸습니다. 오늘 하루도 차질 없이 시작합시다.",
-            14: "맹구, 오후 점검 시간입니다. 현재 흐름을 확인해 주십시오.",
-            20: "맹구, 오늘 장이 마감되었습니다. 최종 보고를 확인해 주십시오.",
+            9:  "맹구, 장이 열렸습니다. 오늘 하루도 차질 없이 시작합시다.",
+            12: "맹구, 오후 점검 시간입니다. 현재 흐름을 확인해 주십시오.",
+            15: "맹구, 오늘 장이 마감되었습니다. 최종 보고를 확인해 주십시오.",
         }
         return fallbacks.get(hour, f"맹구, {hour}시 정기 보고입니다.")
 
     def _fallback_closing(self, hour: int) -> str:
         fallbacks = {
-            8:  "좋은 출발입니다. 오늘도 승리를 향해 전진합시다!",
-            14: "후반전도 집중력을 유지합시다.",
-            20: "수고하셨습니다. 내일도 함께 싸웁시다.",
+            9:  "좋은 출발입니다. 오늘도 승리를 향해 전진합시다!",
+            12: "후반전도 집중력을 유지합시다.",
+            15: "수고하셨습니다. 내일도 함께 싸웁시다.",
         }
         return fallbacks.get(hour, "이상으로 브리핑을 마칩니다.")
 
     # ── 리포트 전송 ───────────────────────────────────
-    async def send_daily_report(self, hour: int = None):
+    async def send_daily_report(self, report_time: tuple = None):
         try:
             if not self.owner_id:
                 print("❌ OWNER_ID 미설정")
@@ -301,14 +297,14 @@ class BrunoFernandesBot(commands.Bot):
 
             user = await self.fetch_user(self.owner_id)
             now  = datetime.now(self.kst)
-            if hour is None:
-                hour = now.hour
+            if report_time is None:
+                report_time = (now.hour, now.minute)
 
             weekdays = ["월요일","화요일","수요일","목요일","금요일","토요일","일요일"]
             weekday  = weekdays[now.weekday()]
             date_str = f"{now.year}년 {now.month}월 {now.day}일 {weekday}"
 
-            is_closing = (hour == 20)
+            is_closing = (report_time == (15, 30))
 
             # 날씨
             busan_weather_raw = await self.get_busan_weather()
@@ -318,13 +314,13 @@ class BrunoFernandesBot(commands.Bot):
                     weather_summary = line.replace("┣", "").replace("오늘:", "").strip()
                     break
 
-            # 인사말
+            # 인사말 (hour만 넘김)
             today_greeting, today_closing = await self.generate_greeting_and_closing(
-                hour=hour, weather_summary=weather_summary, weekday=weekday
+                hour=report_time[0], weather_summary=weather_summary, weekday=weekday
             )
 
             # 헤더
-            time_header = TIME_HEADERS.get(hour, f"⏰ {hour}시 보고")
+            time_header = TIME_HEADERS.get(report_time, f"⏰ {report_time[0]}:{report_time[1]:02d} 보고")
             divider = "─" * 30 + "\n"
 
             report  = f"# {time_header}\n"
@@ -355,9 +351,10 @@ class BrunoFernandesBot(commands.Bot):
     @tasks.loop(minutes=1)
     async def daily_report_task(self):
         now = datetime.now(self.kst)
-        if now.hour in REPORT_TIMES and now.minute == 0:
-            print(f"\n⏰ 정기 보고: {now.hour}시 정각!")
-            await self.send_daily_report(hour=now.hour)
+        current = (now.hour, now.minute)
+        if current in REPORT_TIMES:
+            print(f"\n⏰ 정기 보고: {now.hour}:{now.minute:02d}!")
+            await self.send_daily_report(report_time=current)
             await asyncio.sleep(60)
 
     @daily_report_task.before_loop
@@ -365,8 +362,8 @@ class BrunoFernandesBot(commands.Bot):
         await self.wait_until_ready()
         now = datetime.now(self.kst)
         future_times = [
-            now.replace(hour=t, minute=0, second=0, microsecond=0)
-            for t in REPORT_TIMES
+            now.replace(hour=h, minute=m, second=0, microsecond=0)
+            for h, m in REPORT_TIMES
         ]
         next_report = next((t for t in future_times if t > now), None)
         if not next_report:
@@ -375,8 +372,8 @@ class BrunoFernandesBot(commands.Bot):
         wait_seconds = (next_report - now).total_seconds()
         h = int(wait_seconds // 3600)
         m = int((wait_seconds % 3600) // 60)
-        print(f"⏱️ 스케줄러 활성화 (1일 3회: 08, 14, 20시)")
-        print(f"  → 다음 보고({next_report.hour}시)까지: {h}시간 {m}분 남음")
+        print(f"⏱️ 스케줄러 활성화 (1일 3회: 09:30, 12:00, 15:30)")
+        print(f"  → 다음 보고({next_report.strftime('%H:%M')})까지: {h}시간 {m}분 남음")
 
 
 # ── 봇 인스턴스 ───────────────────────────────────────
@@ -398,8 +395,8 @@ async def status(ctx):
     if ctx.author.id == OWNER_USER_ID:
         now = datetime.now(bot.kst)
         future_times = [
-            now.replace(hour=t, minute=0, second=0, microsecond=0)
-            for t in REPORT_TIMES
+            now.replace(hour=h, minute=m, second=0, microsecond=0)
+            for h, m in REPORT_TIMES
         ]
         next_report = next((t for t in future_times if t > now), None)
         if not next_report:
@@ -412,7 +409,7 @@ async def status(ctx):
         msg  = "**🤖 브루노 페르난데스 봇 상태**\n\n"
         msg += f"✅ 봇 상태: 정상 작동 중\n"
         msg += f"🕐 현재 시각: {now.strftime('%Y-%m-%d %H:%M:%S')} (KST)\n"
-        msg += f"⏰ 다음 리포트: {next_report.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        msg += f"⏰ 다음 리포트: {next_report.strftime('%Y-%m-%d %H:%M')}\n"
         msg += f"⏱️ 남은 시간: {h}시간 {m}분\n"
         msg += f"👤 Owner ID: `{bot.owner_id}`"
         await ctx.send(msg)
@@ -426,7 +423,7 @@ async def help_command(ctx):
     msg += "**`!테스트`** - 즉시 리포트 받기 (Owner 전용)\n"
     msg += "**`!상태`** - 봇 상태 확인 (Owner 전용)\n"
     msg += "**`!도움말`** - 이 메시지 보기\n\n"
-    msg += "_매일 08, 14, 20시에 자동으로 DM 전송됩니다._"
+    msg += "_매일 09:30, 12:00, 15:30에 자동으로 DM 전송됩니다._"
     await ctx.send(msg)
 
 
