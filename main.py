@@ -77,7 +77,66 @@ class BrunoFernandesBot(commands.Bot):
         print(f"⏰ 보고 시간: 매일 08시, 14시, 20시 (KST)")
         print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-    # ── 날씨 ──────────────────────────────────────────
+    # ── 뉴스 ──────────────────────────────────────────
+    async def get_news(self):
+        """국제뉴스 3개 + 반도체뉴스 3개 RSS로 수집"""
+        import xml.etree.ElementTree as ET
+
+        result = "## 📰 뉴스\n"
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+
+        # 국제뉴스 - BBC World
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "https://feeds.bbci.co.uk/news/world/rss.xml",
+                    headers=headers, timeout=10
+                ) as res:
+                    if res.status == 200:
+                        text = await res.text()
+                        root = ET.fromstring(text)
+                        items = root.findall(".//item")[:3]
+                        result += "**🌍 국제뉴스**\n"
+                        for i, item in enumerate(items, 1):
+                            title = item.find("title")
+                            link  = item.find("link")
+                            if title is not None:
+                                result += f"{i}. {title.text}\n"
+                    else:
+                        result += f"**🌍 국제뉴스**\n⚠️ 데이터 접근 실패 ({res.status})\n"
+        except Exception as e:
+            result += f"**🌍 국제뉴스**\n⚠️ 수집 실패: {e}\n"
+            print(f"  └─ 국제뉴스 오류: {e}")
+
+        result += "\n"
+
+        # 반도체뉴스 - Google News RSS
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "https://news.google.com/rss/search?q=반도체&hl=ko&gl=KR&ceid=KR:ko",
+                    headers=headers, timeout=10
+                ) as res:
+                    if res.status == 200:
+                        text = await res.text()
+                        root = ET.fromstring(text)
+                        items = root.findall(".//item")[:3]
+                        result += "**💾 반도체뉴스**\n"
+                        for i, item in enumerate(items, 1):
+                            title = item.find("title")
+                            if title is not None:
+                                # Google News 제목에서 언론사 부분 제거
+                                t = title.text.split(" - ")[0].strip()
+                                result += f"{i}. {t}\n"
+                    else:
+                        result += f"**💾 반도체뉴스**\n⚠️ 데이터 접근 실패 ({res.status})\n"
+        except Exception as e:
+            result += f"**💾 반도체뉴스**\n⚠️ 수집 실패: {e}\n"
+            print(f"  └─ 반도체뉴스 오류: {e}")
+
+        return result.strip()
+
+    
     async def get_busan_weather(self):
         weather_dict = {
             "Clear": "맑음 ☀️",
@@ -330,6 +389,7 @@ class BrunoFernandesBot(commands.Bot):
             sections = [
                 busan_weather_raw,
                 self.get_investment_info(is_closing=is_closing),
+                await self.get_news(),
             ]
 
             for section in sections:
